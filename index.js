@@ -9,7 +9,7 @@ import { scheduleDailySummary } from './scheduler.js';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8000;
 const FASTAPI_URL = "https://noisy-madelon-aimalaka-4ae3677b.koyeb.app";
 
 // =========================
