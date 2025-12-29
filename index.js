@@ -3,8 +3,8 @@ import dotenv from "dotenv";
 import { createClient } from '@supabase/supabase-js';
 import cors from "cors";
 import axios from "axios";
-import { sendTelegramAlert } from './telegram.js'; // PERBAIKI: path relatif
-import { scheduleDailySummary } from './scheduler.js'; // PERBAIKI: path relatif
+import { sendTelegramAlert } from './telegram.js';
+import { scheduleDailySummary } from './scheduler.js';
 
 dotenv.config();
 
@@ -32,8 +32,6 @@ console.log(`✅ ML API URL: ${FASTAPI_URL}`);
 // =========================
 app.use(cors());
 app.use(express.json());
-
-// Logging middleware
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
   next();
@@ -116,23 +114,19 @@ app.post("/api/sensor", async (req, res) => {
     console.log("✅ Data saved, ID:", insertedData.id);
 
     let mlPrediction = null;
-    let shouldSendAlert = false; // Flag untuk notifikasi
+    let shouldSendAlert = false;
 
     try {
       const mlResponse = await axios.post(`${FASTAPI_URL}/predict`, sensorData);
       mlPrediction = mlResponse.data;
-      console.log("✅ ML Prediction received:", mlPrediction);
 
-      // CEK JIKA STATUS BANJIR/BAHAYA
-      if (mlPrediction.status === "BANJIR" || mlPrediction.status === "BAHAYA" || 
-          mlPrediction.prediction === 1) {
+      if (mlPrediction.status === "BANJIR" || mlPrediction.status === "BAHAYA" || mlPrediction.prediction === 1) {
         shouldSendAlert = true;
         console.log("🚨 Flood condition detected! Will send alert.");
       }
 
     } catch (mlError) {
       console.warn("⚠️ ML API error:", mlError.message);
-      // Fallback: gunakan threshold manual
       if (sensorData.h_kanan > 150 || sensorData.h_kiri > 150) {
         shouldSendAlert = true;
         mlPrediction = {
@@ -145,24 +139,18 @@ app.post("/api/sensor", async (req, res) => {
       }
     }
 
-    // KIRIM NOTIFIKASI TELEGRAM JIKA BANJIR
     if (shouldSendAlert && mlPrediction) {
       console.log("📱 Sending Telegram alert...");
-      
       const alertData = {
         ...sensorData,
         sensor_id: insertedData.id,
         prediction: mlPrediction,
         timestamp: new Date().toISOString()
       };
-      
       try {
         const telegramResult = await sendTelegramAlert(alertData);
-        if (telegramResult) {
-          console.log("✅ Telegram alert sent successfully");
-        } else {
-          console.warn("⚠️ Telegram alert returned false");
-        }
+        if (telegramResult) console.log("✅ Telegram alert sent successfully");
+        else console.warn("⚠️ Telegram alert returned false");
       } catch (telegramError) {
         console.error("❌ Failed to send Telegram alert:", telegramError.message);
       }
@@ -188,7 +176,6 @@ app.post("/api/sensor", async (req, res) => {
 app.get("/api/latest", async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 10;
-
     const { data, error } = await supabase
       .from("sensor_logs")
       .select("*")
@@ -220,7 +207,6 @@ app.get("/api/current-status", async (req, res) => {
     if (readingError) console.error("Error fetching readings:", readingError);
 
     const latestReading = readings?.[0] || null;
-
     let status = "AMAN", prediction = 0, mlData = null;
 
     if (latestReading) {
@@ -229,8 +215,6 @@ app.get("/api/current-status", async (req, res) => {
         mlData = mlResponse.data;
         status = mlData.status;
         prediction = mlData.prediction;
-        
-        // Cek apakah perlu kirim notifikasi
         if (status === "BANJIR" || status === "BAHAYA" || prediction === 1) {
           console.log("🚨 Current status indicates flood!");
         }
@@ -269,35 +253,24 @@ app.get("/api/current-status", async (req, res) => {
 // =========================
 app.get("/api/stats", async (req, res) => {
   try {
-    console.log("📈 Fetching statistics...");
-
     const { data: dummy1, count: totalReadings, error: countError } = await supabase
       .from("sensor_logs")
       .select("*", { count: 'exact', head: true });
-    if (countError) console.warn("Sensor logs count error:", countError);
 
     let latestData = null;
-    try {
-      const { data: latestReading, error: latestError } = await supabase
-        .from("sensor_logs")
-        .select("h_kanan, h_kiri, created_at")
-        .order("created_at", { ascending: false })
-        .limit(1);
-      if (!latestError && latestReading?.length > 0) latestData = latestReading[0];
-    } catch (e) {
-      console.warn("Error fetching latest reading:", e.message);
-    }
+    const { data: latestReading, error: latestError } = await supabase
+      .from("sensor_logs")
+      .select("h_kanan, h_kiri, created_at")
+      .order("created_at", { ascending: false })
+      .limit(1);
+    if (!latestError && latestReading?.length > 0) latestData = latestReading[0];
 
     let floodDays = 0;
-    try {
-      const { data: dummy2, count, error: floodError } = await supabase
-        .from("daily_summary")
-        .select("*", { count: 'exact', head: true })
-        .eq("status", "BANJIR");
-      if (!floodError && typeof count === "number") floodDays = count;
-    } catch (e) {
-      console.warn("daily_summary missing or empty:", e.message);
-    }
+    const { data: dummy2, count, error: floodError } = await supabase
+      .from("daily_summary")
+      .select("*", { count: 'exact', head: true })
+      .eq("status", "BANJIR");
+    if (!floodError && typeof count === "number") floodDays = count;
 
     const safeDays = Math.max(0, (totalReadings || 0) - floodDays);
 
@@ -327,7 +300,9 @@ app.get("/api/stats", async (req, res) => {
   }
 });
 
+// =========================
 // Get chart data
+// =========================
 app.get("/api/chart-data", async (req, res) => {
   try {
     const hours = parseInt(req.query.hours) || 24;
@@ -341,8 +316,8 @@ app.get("/api/chart-data", async (req, res) => {
       .order("created_at", { ascending: true });
 
     if (error) return res.status(500).json({ success: false, error: error.message });
-
     res.json({ success: true, hours, data: data || [] });
+
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -364,28 +339,18 @@ app.post("/api/predict", async (req, res) => {
 // ERROR HANDLERS
 // =========================
 app.use((req, res) => {
-  res.status(404).json({ 
-    success: false, 
-    error: "Endpoint not found", 
-    requested_url: req.url 
-  });
+  res.status(404).json({ success: false, error: "Endpoint not found", requested_url: req.url });
 });
 
 app.use((err, req, res, next) => {
   console.error("🔥 Server error:", err);
-  res.status(500).json({ 
-    success: false, 
-    error: "Internal server error" 
-  });
+  res.status(500).json({ success: false, error: "Internal server error" });
 });
 
 // =========================
 // TELEGRAM CONNECTION TEST
 // =========================
 (async () => {
-  console.log('🤖 Testing Telegram connection...');
-  
-  // Tunggu sebentar sebelum test
   setTimeout(async () => {
     const testData = {
       h_kanan: 160,
@@ -393,23 +358,14 @@ app.use((err, req, res, next) => {
       q_kanan: 120,
       q_kiri: 110,
       sensor_id: "test-001",
-      prediction: {
-        status: "TEST",
-        confidence: 95,
-        recommendation: "This is a test message from flood monitoring system"
-      },
+      prediction: { status: "TEST", confidence: 95, recommendation: "This is a test message from flood monitoring system" },
       timestamp: new Date().toISOString()
     };
-    
     try {
-      const success = await sendTelegramAlert(testData);
-      if (success) {
-        console.log('✅ Telegram connection test successful');
-      } else {
-        console.log('⚠️ Telegram test completed but returned false');
-      }
+      await sendTelegramAlert(testData);
+      console.log('✅ Telegram connection test successful');
     } catch (error) {
-      console.warn('⚠️ Telegram test failed (might be normal if no credentials):', error.message);
+      console.warn('⚠️ Telegram test failed:', error.message);
     }
   }, 2000);
 })();
@@ -417,22 +373,11 @@ app.use((err, req, res, next) => {
 // =========================
 // START SERVER
 // =========================
-
-// Jalankan scheduler
 scheduleDailySummary();
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on http://0.0.0.0:${PORT}`);
-  console.log(`📡 ESP32 URL: http://10.48.142.234:${PORT}/api/sensor`);
   console.log(`🌐 Web Dashboard: http://localhost:5173`);
   console.log(`🤖 ML API: ${FASTAPI_URL}`);
   console.log(`📱 Telegram Alerts: ${process.env.TELEGRAM_BOT_TOKEN ? 'ENABLED' : 'DISABLED'}`);
-  console.log(`✅ Test endpoints:`);
-  console.log(`   http://localhost:${PORT}/test`);
-  console.log(`   http://localhost:${PORT}/api/test`);
-  console.log(`   http://localhost:${PORT}/api/latest`);
-  console.log(`   http://localhost:${PORT}/api/stats`);
-  console.log(`   http://localhost:${PORT}/api/current-status`);
-  console.log(`   http://localhost:${PORT}/api/predict (POST)`);
-  console.log(`⏰ Scheduler: ACTIVE (daily summary & cleanup)`);
 });
