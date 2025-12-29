@@ -3,13 +3,13 @@ import dotenv from "dotenv";
 import { createClient } from '@supabase/supabase-js';
 import cors from "cors";
 import axios from "axios";
-import { sendTelegramAlert } from './telegram.js';
-import { scheduleDailySummary } from './scheduler.js';
+import { sendTelegramAlert } from './telegram.js'; // PERBAIKI: path relatif
+import { scheduleDailySummary } from './scheduler.js'; // PERBAIKI: path relatif
 
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 8000;
+const PORT = process.env.PORT || 3000;
 const FASTAPI_URL = "https://noisy-madelon-aimalaka-4ae3677b.koyeb.app";
 
 // =========================
